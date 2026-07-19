@@ -175,14 +175,14 @@ app.post('/api/documents/:id/review', auth('admin', 'officer'), (req, res) => {
 
 // ---------- Courses (curriculum) ----------
 app.get('/api/courses', auth(), (req, res) => {
-  res.json(db.prepare('SELECT * FROM courses WHERE active=1 ORDER BY category, code').all());
+  res.json(db.prepare("SELECT * FROM courses WHERE active=1 ORDER BY CASE category WHEN 'general' THEN 1 WHEN 'core' THEN 2 ELSE 3 END, id").all());
 });
 app.post('/api/courses', auth('admin', 'officer'), (req, res) => {
-  const { code, name, credits, category, department_id } = req.body || {};
+  const { code, name, credits, category, subgroup, department_id } = req.body || {};
   if (!code || !name || !category) return res.status(400).json({ error: 'กรอกรหัสวิชา ชื่อวิชา และหมวดให้ครบ' });
   try {
-    db.prepare('INSERT INTO courses (code,name,credits,category,department_id) VALUES (?,?,?,?,?)')
-      .run(code.trim(), name.trim(), credits || 3, category, department_id || req.session.user.department_id);
+    db.prepare('INSERT INTO courses (code,name,credits,category,subgroup,department_id) VALUES (?,?,?,?,?,?)')
+      .run(code.trim(), name.trim(), credits || 3, category, subgroup || '', department_id || req.session.user.department_id);
     log(req.session.user.id, 'add_course', `${code} ${name}`);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: 'รหัสวิชานี้มีอยู่แล้วในสาขา' }); }
@@ -234,7 +234,7 @@ app.delete('/api/transfers/:id', auth('admin'), (req, res) => {
 
 // ---------- Curriculum view ----------
 function curriculum(studentId) {
-  const courses = db.prepare('SELECT * FROM courses WHERE active=1 ORDER BY category, code').all();
+  const courses = db.prepare("SELECT * FROM courses WHERE active=1 ORDER BY CASE category WHEN 'general' THEN 1 WHEN 'core' THEN 2 ELSE 3 END, id").all();
   const transfers = db.prepare('SELECT course_id FROM transfers WHERE student_id=?').all(studentId).map(t => t.course_id);
   const enrolls = db.prepare(`SELECT o.course_id, s.term, s.year FROM enrollments e JOIN offerings o ON o.id=e.offering_id JOIN semesters s ON s.id=o.semester_id WHERE e.student_id=? AND e.status='enrolled'`).all(studentId);
   const rows = courses.map(c => {
